@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DS4B Workshop Timer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f1f5f9;
+  color: #1e293b;
+  min-height: 100vh;
+}
+
+/* ── Selection screen ─────────────────────────────────────────────── */
+#selection-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+  gap: 2.5rem;
+}
+
+#selection-screen h1 { font-size: 2.5rem; font-weight: 700; color: #0f172a; }
+#selection-screen p   { color: #64748b; font-size: 1.1rem; }
+
+.workshop-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 540px;
+}
+
+.workshop-btn {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1rem 1.5rem;
+  cursor: pointer;
+  text-align: left;
+  color: #1e293b;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.workshop-btn:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+  transform: translateX(4px);
+}
+.workshop-btn .ws-name { font-size: 1.15rem; font-weight: 600; }
+.workshop-btn .ws-meta { font-size: 0.85rem; color: #64748b; margin-top: 0.2rem; }
+.workshop-btn:hover .ws-meta { color: #bfdbfe; }
+
+/* ── Timer screen ─────────────────────────────────────────────────── */
+#timer-screen { display: none; flex-direction: column; min-height: 100vh; }
+#timer-screen.visible { display: flex; }
+
+/* Header */
+.timer-header {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.85rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.ws-title { font-size: 1.3rem; font-weight: 700; color: #0f172a; }
+
+.time-info { display: flex; gap: 2.5rem; align-items: center; }
+
+.ti { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; }
+.ti-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+.ti-value {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #1e293b;
+  font-variant-numeric: tabular-nums;
+}
+.ti-input {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.15rem 0.4rem;
+  background: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit;
+  cursor: pointer;
+}
+.ti-input:hover { border-color: #94a3b8; }
+.ti-input:focus { outline: none; border-color: #2563eb; }
+
+.back-btn {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+.back-btn:hover { background: #e2e8f0; color: #1e293b; }
+
+/* ── Timeline card ─────────────────────────────────────────────────── */
+.timeline-area {
+  flex: 1;
+  padding: 2rem 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  margin: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+
+/* Tick row */
+.tick-row {
+  position: relative;
+  height: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+.tick-label {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bar */
+.bar-wrapper { position: relative; width: 100%; }
+
+.bar-row {
+  display: flex;
+  width: 100%;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  gap: 3px;
+}
+
+.segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  min-width: 0;
+  transition: background 0.5s;
+}
+
+/* Regular segments */
+.segment.past    { background: #94a3b8; }
+.segment.current { background: #2563eb; }
+.segment.current.over-time { background: #f59e0b; }
+.segment.future  { background: #e2e8f0; border: 1px solid #cbd5e1; }
+
+/* Checkout segment overrides */
+.segment.checkout.past    { background: #991b1b; }
+.segment.checkout.current { background: #dc2626; }
+.segment.checkout.future  { background: #fee2e2; border-color: #fca5a5; }
+
+.segment-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #fff;
+  text-align: center;
+  padding: 0 0.4rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  user-select: none;
+  line-height: 1.35;
+}
+.segment.future .segment-label           { color: #94a3b8; }
+.segment.checkout.future .segment-label  { color: #ef4444; }
+
+.segment-check {
+  position: absolute;
+  top: 5px; right: 6px;
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.85);
+}
+
+/* NOW marker */
+.now-marker {
+  position: absolute;
+  top: -10px;
+  bottom: -10px;
+  width: 4px;
+  background: #0f172a;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: none;
+  transition: left 1.5s linear;
+}
+.now-marker::before {
+  content: '';
+  position: absolute;
+  top: -8px; left: 50%;
+  transform: translateX(-50%);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 10px solid #0f172a;
+}
+.now-marker::after {
+  content: '';
+  position: absolute;
+  bottom: -8px; left: 50%;
+  transform: translateX(-50%);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 10px solid #0f172a;
+}
+
+/* ── YOU ARE HERE ──────────────────────────────────────────────────── */
+.yah-block {
+  text-align: center;
+  margin-top: 2rem;
+  min-height: 11rem;
+}
+.yah-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #94a3b8;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+.yah-section {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.15;
+}
+.yah-section.over-time { color: #dc2626; }
+.yah-detail {
+  font-size: 1.1rem;
+  color: #64748b;
+  margin-top: 0.45rem;
+}
+.yah-detail .rem-val      { font-weight: 700; color: #2563eb; }
+.yah-detail .rem-val.over { color: #dc2626; }
+
+/* ── Status strip ─────────────────────────────────────────────────── */
+.status-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-top: 1.8rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f1f5f9;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+.status-done { font-size: 0.9rem; color: #64748b; flex: 1; }
+.done-label  { color: #16a34a; font-weight: 600; margin-right: 0.35rem; }
+.status-next { font-size: 0.9rem; color: #64748b; text-align: right; flex: 1; }
+.next-label  { color: #1e293b; font-weight: 600; }
+
+/* ── Aim block ─────────────────────────────────────────────────────── */
+.aim-block {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding: 1rem 1.5rem;
+  background: #fefce8;
+  border: 1px solid #fde047;
+  border-radius: 10px;
+}
+.aim-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #a16207;
+  margin-bottom: 0.25rem;
+}
+.aim-time {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #713f12;
+}
+
+.complete-banner {
+  display: none;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  text-align: center;
+  color: #166534;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+}
+.complete-banner.visible { display: block; }
+
+.early-note {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+</style>
+</head>
+<body>
+
+<!-- Selection screen -->
+<div id="selection-screen">
+  <div style="text-align:center">
+    <h1>DS4B Workshop Timer</h1>
+    <p>Choose a workshop to begin</p>
+  </div>
+  <div class="workshop-grid" id="workshop-grid"></div>
+</div>
+
+<!-- Timer screen -->
+<div id="timer-screen">
+  <div class="timer-header">
+    <div class="ws-title" id="header-title">Workshop</div>
+    <div class="time-info">
+      <div class="ti">
+        <span class="ti-label">Started</span>
+        <input type="time" id="start-time-input" class="ti-input" onchange="onStartTimeChange()">
+      </div>
+      <div class="ti">
+        <span class="ti-label">Now</span>
+        <span class="ti-value" id="now-time">—</span>
+      </div>
+      <div class="ti">
+        <span class="ti-label">Elapsed</span>
+        <span class="ti-value" id="elapsed-time">—</span>
+      </div>
+    </div>
+    <button class="back-btn" onclick="goBack()">↩ Back</button>
+  </div>
+
+  <div class="timeline-area">
+    <div class="tick-row" id="tick-row"></div>
+    <div class="bar-wrapper">
+      <div class="bar-row" id="bar-row"></div>
+      <div class="now-marker" id="now-marker" style="left:0%"></div>
+    </div>
+
+    <div class="yah-block">
+      <div class="yah-eyebrow">You are here</div>
+      <div class="yah-section" id="yah-section">—</div>
+      <div class="yah-detail"  id="yah-detail"></div>
+    </div>
+
+    <div class="aim-block" id="aim-block">
+      <div class="aim-label">You should aim to complete the workshop by</div>
+      <div class="aim-time" id="aim-time">—</div>
+    </div>
+
+    <div class="status-strip">
+      <div class="status-done" id="status-done"></div>
+      <div class="status-next" id="status-next"></div>
+    </div>
+
+    <div class="complete-banner" id="complete-banner">🎉 Workshop complete!</div>
+
+    <p class="early-note">If you are done early and want to leave, please find an instructor to do your Checkout.</p>
+  </div>
+</div>
+
+<script>
+const WORKSHOPS    = [
+  {
+    "name": "Did Mendel Cheat?",
+    "file": "/Users/roblanfear/Documents/GitHub/DS4B/Week1/workshop/Workshop_instructions.qmd",
+    "sections": [
+      {
+        "name": "Introduction",
+        "minutes": 10
+      },
+      {
+        "name": "Task 1: Chi Square test",
+        "minutes": 25
+      },
+      {
+        "name": "Task 2: Loading the data",
+        "minutes": 10
+      },
+      {
+        "name": "Task 3: Using rowwise()",
+        "minutes": 25
+      },
+      {
+        "name": "Task 4: Plotting the p values",
+        "minutes": 25
+      }
+    ]
+  },
+  {
+    "name": "EDA Workshop Instructions",
+    "file": "/Users/roblanfear/Documents/GitHub/DS4B/Week2/workshop/workshop_instructions.qmd",
+    "sections": [
+      {
+        "name": "Introduction",
+        "minutes": 5
+      },
+      {
+        "name": "Task 1: Loading the data",
+        "minutes": 20
+      },
+      {
+        "name": "Task 2: Null Hypothesis Significance Testing",
+        "minutes": 25
+      },
+      {
+        "name": "Task 3: Exploratory Data Analysis",
+        "minutes": 40
+      }
+    ]
+  },
+  {
+    "name": "GitHub Workshop Instructions",
+    "file": "/Users/roblanfear/Documents/GitHub/DS4B/Week3/workshop/workshop_instructions_github.qmd",
+    "sections": [
+      {
+        "name": "Task 1: Create a GitHub repo",
+        "minutes": 15
+      },
+      {
+        "name": "Task 2: Get & load the data",
+        "minutes": 25
+      },
+      {
+        "name": "Task 3: Plot it",
+        "minutes": 20
+      },
+      {
+        "name": "Task 4: Comment on a neighbour",
+        "minutes": 10
+      },
+      {
+        "name": "Task 5: Address issues",
+        "minutes": 20
+      }
+    ]
+  },
+  {
+    "name": "Coding Workshop",
+    "file": "/Users/roblanfear/Documents/GitHub/DS4B/Week4/workshop/workshop_instructions_coding.qmd",
+    "sections": [
+      {
+        "name": "Before you begin",
+        "minutes": 10
+      },
+      {
+        "name": "Introduction",
+        "minutes": 5
+      },
+      {
+        "name": "Task 1: Load the data",
+        "minutes": 10
+      },
+      {
+        "name": "Task 2: Reprex",
+        "minutes": 30
+      },
+      {
+        "name": "Task 3: Debugging",
+        "minutes": 20
+      }
+    ]
+  }
+];
+const CHECKOUT_MIN = 45;
+
+let currentWorkshop  = null;
+let startTime        = null;   // Date object
+let timerInterval    = null;
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function fmtTime(date) {
+  let h = date.getHours(), m = date.getMinutes();
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return h + ':' + String(m).padStart(2, '0') + '\u202f' + ap;
+}
+
+function fmtElapsedMin(min) {
+  const h = Math.floor(min / 60), m = Math.floor(min % 60);
+  return h > 0 ? h + 'h\u202f' + m + 'm' : Math.floor(min) + 'm';
+}
+
+function addMin(date, mins) {
+  return new Date(date.getTime() + mins * 60000);
+}
+
+// Sections array always has Checkout appended
+function getSections(ws) {
+  return [...ws.sections, { name: 'Checkout', minutes: CHECKOUT_MIN, isCheckout: true }];
+}
+
+// Build cumulative minutes array: [0, m0, m0+m1, ...]
+function buildCum(sections) {
+  const cum = [0];
+  sections.forEach(s => cum.push(cum[cum.length - 1] + s.minutes));
+  return cum;
+}
+
+function getElapsedMin() {
+  return Math.max(0, (Date.now() - startTime.getTime()) / 60000);
+}
+
+// ── Selection screen ───────────────────────────────────────────────────────
+
+function buildSelectionScreen() {
+  const grid = document.getElementById('workshop-grid');
+  grid.innerHTML = '';
+  WORKSHOPS.forEach((ws, i) => {
+    const total = ws.sections.reduce((s, x) => s + x.minutes, 0) + CHECKOUT_MIN;
+    const btn = document.createElement('button');
+    btn.className = 'workshop-btn';
+    btn.innerHTML =
+      `<div class="ws-name">${ws.name}</div>` +
+      `<div class="ws-meta">${ws.sections.length} sections + checkout · ${total} min total</div>`;
+    btn.onclick = () => startWorkshop(i);
+    grid.appendChild(btn);
+  });
+}
+
+// ── Start / back ───────────────────────────────────────────────────────────
+
+function startWorkshop(index) {
+  currentWorkshop  = WORKSHOPS[index];
+  startTime        = new Date();
+  const sections = getSections(currentWorkshop);
+
+  document.getElementById('selection-screen').style.display = 'none';
+  document.getElementById('timer-screen').classList.add('visible');
+  document.getElementById('header-title').textContent = currentWorkshop.name;
+
+  // Initialise start-time input to now
+  const hh = String(startTime.getHours()).padStart(2, '0');
+  const mm = String(startTime.getMinutes()).padStart(2, '0');
+  document.getElementById('start-time-input').value = `${hh}:${mm}`;
+
+  buildTimeline();
+  updateTimer();
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(updateTimer, 10000);
+}
+
+function goBack() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  currentWorkshop = null;
+  startTime = null;
+  document.getElementById('timer-screen').classList.remove('visible');
+  document.getElementById('selection-screen').style.display = 'flex';
+}
+
+// ── Controls ───────────────────────────────────────────────────────────────
+
+function onStartTimeChange() {
+  const val = document.getElementById('start-time-input').value;
+  if (!val) return;
+  const [h, m] = val.split(':').map(Number);
+  startTime = new Date();
+  startTime.setHours(h, m, 0, 0);
+  updateTicks();
+  updateTimer();
+}
+
+// ── Build timeline skeleton (once per workshop start) ──────────────────────
+
+function buildTimeline() {
+  const sections = getSections(currentWorkshop);
+  const totalMin = sections.reduce((s, x) => s + x.minutes, 0);
+  const cum      = buildCum(sections);
+
+  // Tick labels (text set by updateTicks)
+  const tickRow = document.getElementById('tick-row');
+  tickRow.innerHTML = '';
+  cum.forEach((_, i) => {
+    const tick = document.createElement('div');
+    tick.className = 'tick-label';
+    tick.id = 'tick-' + i;
+    tick.style.left = (cum[i] / totalMin * 100) + '%';
+    tickRow.appendChild(tick);
+  });
+  updateTicks();
+
+  // Segments
+  const barRow = document.getElementById('bar-row');
+  barRow.innerHTML = '';
+  sections.forEach((sec, i) => {
+    const seg = document.createElement('div');
+    seg.className = 'segment future' + (sec.isCheckout ? ' checkout' : '');
+    seg.style.flex = sec.minutes + ' 0 0';
+    seg.id = 'seg-' + i;
+    seg.innerHTML = `<div class="segment-label">${sec.name}</div>`;
+    barRow.appendChild(seg);
+  });
+}
+
+// Update tick label text (called after startTime changes)
+function updateTicks() {
+  if (!currentWorkshop || !startTime) return;
+  const sections = getSections(currentWorkshop);
+  const cum      = buildCum(sections);
+  cum.forEach((c, i) => {
+    const tick = document.getElementById('tick-' + i);
+    if (tick) tick.textContent = fmtTime(addMin(startTime, c));
+  });
+}
+
+// ── Live update ────────────────────────────────────────────────────────────
+
+function updateTimer() {
+  const ws = currentWorkshop;
+  if (!ws || !startTime) return;
+
+  const now        = new Date();
+  const sections   = getSections(ws);
+  const totalMin   = sections.reduce((s, x) => s + x.minutes, 0);
+  const cum        = buildCum(sections);
+  const elapsedMin = getElapsedMin();
+
+  // Header
+  document.getElementById('now-time').textContent     = fmtTime(now);
+  document.getElementById('elapsed-time').textContent = fmtElapsedMin(elapsedMin);
+
+  const isComplete = elapsedMin >= totalMin;
+
+  // Current section index
+  let curIdx = sections.length - 1;
+  for (let i = 0; i < sections.length; i++) {
+    if (elapsedMin < cum[i + 1]) { curIdx = i; break; }
+  }
+
+  // Segment states
+  sections.forEach((sec, i) => {
+    const seg = document.getElementById('seg-' + i);
+    if (!seg) return;
+    let chk  = seg.querySelector('.segment-check');
+    const base = 'segment' + (sec.isCheckout ? ' checkout' : '');
+
+    if (isComplete || i < curIdx) {
+      seg.className = base + ' past';
+      if (!chk) {
+        chk = document.createElement('div');
+        chk.className = 'segment-check';
+        chk.textContent = '✓';
+        seg.appendChild(chk);
+      }
+    } else if (i === curIdx) {
+      const over = elapsedMin > cum[i + 1];
+      seg.className = base + ' current' + (over ? ' over-time' : '');
+      if (chk) chk.remove();
+    } else {
+      seg.className = base + ' future';
+      if (chk) chk.remove();
+    }
+  });
+
+  // NOW marker position
+  const pct = Math.min(elapsedMin / totalMin * 100, 100);
+  document.getElementById('now-marker').style.left = pct + '%';
+
+  // YOU ARE HERE block
+  const yahSection = document.getElementById('yah-section');
+  const yahDetail  = document.getElementById('yah-detail');
+
+  if (isComplete) {
+    yahSection.className   = 'yah-section';
+    yahSection.textContent = '🎉 Workshop Complete';
+    yahDetail.innerHTML    = '';
+    document.getElementById('complete-banner').classList.add('visible');
+  } else {
+    document.getElementById('complete-banner').classList.remove('visible');
+    const curSec    = sections[curIdx];
+    const minInto   = elapsedMin - cum[curIdx];
+    const remaining = Math.max(0, curSec.minutes - minInto);
+    const overMin   = Math.max(0, minInto - curSec.minutes);
+    const isOver    = overMin > 0;
+
+    yahSection.className   = 'yah-section' + (isOver ? ' over-time' : '');
+    yahSection.textContent = curSec.name;
+
+    if (isOver) {
+      yahDetail.innerHTML =
+        `<span class="rem-val over">${Math.ceil(overMin)}\u202fmin over time</span>`;
+    } else {
+      const endTime = fmtTime(addMin(startTime, cum[curIdx + 1]));
+      yahDetail.innerHTML =
+        `<span class="rem-val">${Math.ceil(remaining)}\u202fmin remaining</span>` +
+        ` &nbsp;·&nbsp; ends at ${endTime}`;
+    }
+  }
+
+  // Aim block — checkout starts at cum[sections.length - 1]
+  const checkoutStartMin = cum[sections.length - 1];
+  document.getElementById('aim-time').textContent = fmtTime(addMin(startTime, checkoutStartMin));
+
+  // Status strip
+  const doneDiv = document.getElementById('status-done');
+  const nextDiv = document.getElementById('status-next');
+  const done    = sections.slice(0, isComplete ? sections.length : curIdx);
+
+  doneDiv.innerHTML = done.length
+    ? done.map(s => `<div><span class="done-label">✓ Done:</span> ${s.name}</div>`).join('')
+    : '';
+
+  if (!isComplete && curIdx + 1 < sections.length) {
+    const nxt     = sections[curIdx + 1];
+    const nxtTime = fmtTime(addMin(startTime, cum[curIdx + 1]));
+    nextDiv.innerHTML =
+      `<span class="next-label">Next:</span> ${nxt.name}<br>` +
+      `<span style="color:#94a3b8">starts at ${nxtTime}</span>`;
+  } else if (!isComplete) {
+    nextDiv.innerHTML = `<span style="color:#94a3b8">Last section</span>`;
+  } else {
+    nextDiv.innerHTML = '';
+  }
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+buildSelectionScreen();
+</script>
+</body>
+</html>
